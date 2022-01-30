@@ -1,6 +1,5 @@
 from nltk.corpus import brown
-from collections import Counter
-from copy import deepcopy
+from WordleGuessScorer import WordleGuessScorer
 import re
 
 class WordleGuesser:
@@ -9,29 +8,29 @@ class WordleGuesser:
         self.letterPools = self._initLetterPools()
         self.yellowConstraints = set()
         self.corpus = self._getFiveLetterWordCorpus(corpusReader)
-        self.printBestConstrainedGuesses(5)
+        self.printBestGuesses(5)
 
     # Getters
     def getCorpus(self):
-        return self.corpus.copy()
+        return self.corpus
 
     def getPools(self):
-        return deepcopy(self.letterPools)
+        return self.letterPools
 
     def getYellowConstraints(self):
-        return self.yellowConstraints.copy()
+        return self.yellowConstraints
 
     # Public Methods
     def makeGuess(self, word):
         if len(word) != 5:
-            print(f"Guess must be 5 letters")
+            print("Guess must be 5 letters")
             return
         
-        print(f"You guessed ${word}.")
+        print(f"You guessed {word}.")
         i = 0
         while i < 5:
             char = word[i]
-            color = input(f"What color was ${char}?").lower()
+            color = input(f"What color was {char}?").lower()
             if color in ['gray', 'grey']:
                 self.addGrayLetterConstraint(char)
             elif color == 'yellow':
@@ -45,7 +44,7 @@ class WordleGuesser:
 
         self.corpus = self.filterCorpus(self.corpus)
         print(f"There are {len(self.corpus)} possible words left.")
-        self.printBestConstrainedGuesses(5)
+        self.printBestGuesses(5)
 
     def getCorpusSize(self):
         return len(self.corpus)
@@ -59,30 +58,22 @@ class WordleGuesser:
         print(f"Yellow: {''.join(self.yellowConstraints)}")
 
     # Public - Guess methods, Constrained
-    def printBestConstrainedGuesses(self, numGuesses):
-        guesses = self.getBestNConstrainedGuesses(numGuesses)
+    def printBestGuesses(self, numGuesses):
+        guesses = self.getBestNGuesses(numGuesses)
         print(f"Best {numGuesses} guesses:")
         for word, score in guesses:
             print(f"{word}: {score:.3f}")
 
-    def getBestConstrainedGuess(self):
-        bestWord, bestScore = WordleGuessScorer().getBestWord(self)
+    def getBestGuess(self):
+        scorer = WordleGuessScorer(self.corpus, self.letterPools, self.yellowConstraints)
+        bestWord, bestScore = scorer.getBestWord()
         return bestWord
 
-    def getBestNConstrainedGuesses(self, n):
+    def getBestNGuesses(self, n):
+        scorer = WordleGuessScorer(self.corpus, self.letterPools, self.yellowConstraints)
         if len(self.corpus) < n:
             n = len(self.corpus)
-        return WordleGuessScorer().getSortedScoredWords(self)[:n]
-
-    # Public - Guess methods, Unconstrained
-    def printBestUnconstrainedGuesses(self, numGuesses):
-        pass
-
-    def getBestUnconstrainedGuess(self):
-        pass
-
-    def getBestNUnconstrainedGuesses(self, n):
-        pass
+        return scorer.getSortedScoredWords()[:n]
 
     # Sorta Public Methods (public but probably not useful)
     def addGreenLetterConstraint(self, index, letter):
@@ -133,87 +124,7 @@ class WordleGuesser:
             pool.append(alphabet.copy())
         return pool
 
-class WordleGuessScorer:
-    # Public - Scoring/Guessing methods for real guesses
-    def getBestWord(self, guesser):
-        letterScoringMap = self.makeScoringMap(guesser)
-        bestWord = None
-        bestScore = 0
-        for word in guesser.getCorpus():
-            score = self._scoreWord(word, letterScoringMap)
-            if score > bestScore:
-                bestWord = word
-                bestScore = score
-        return bestWord, bestScore
 
-    def getSortedScoredWords(self, guesser):
-        scoringFunc = lambda word, scoreMap: self._scoreWord(word, scoreMap)
-        wordScores = self.scoreWords(guesser, scoringFunc)
-        sortedScores = sorted(list(wordScores.items()), key=lambda x: -x[1])
-        return sortedScores
-    
-    # Public - Scoring/Guessing methods for filter guesses
-    # (a filter guess is a word which targets likely, unguessed letters)
-
-    # Public - Other methods
-    def scoreWords(self, guesser, scoringFunc):
-        letterScoringMap = self.makeScoringMap(guesser)
-        wordScores = {}
-        for word in guesser.getCorpus():
-            wordScores[word] = scoringFunc(word, letterScoringMap)
-        return wordScores
-    
-    def makeScoringMap(self, guesser):
-        corpus = guesser.getCorpus()
-        pools = guesser.getPools()
-        yellowConstraints = guesser.getYellowConstraints()
-
-        letterFreqs = self._scoreLetters(corpus)
-        letterBlacklist = self._getConstrainingLetters(yellowConstraints, pools)
-
-        for char in letterBlacklist:
-            letterFreqs[char] = 0
-
-        return letterFreqs
-
-    # Private Methods
-    def _scoreWord(self, word, scoringMap):
-        score = 0
-        countedChars = set()
-        for char in word:
-            # avoids counting chars twice; more letters is more valuable
-            if char not in countedChars:
-                score += scoringMap[char]
-                countedChars.add(char)
-        return score
-    
-    def _getConstrainingLetters(self, yellowConstraints, letterPools):
-        '''returns yellow or green constraining letters. Used for blacklisting
-        letters from scoring algorithm'''
-        letters = []
-        for char in yellowConstraints:
-            letters.append(char)
-
-        for pool in letterPools:
-            if len(pool) == 1:
-                # len 1 is a green constraint
-                letters.append(list(pool)[0]) # convert to char
-
-        return letters
-
-    def _scoreLetters(self, corpus):
-        letterCounts = self._getLetterCounts(corpus)
-        numLetters = len(corpus) * 5 # every word is 5 letters
-        letterFreqs = {}
-        for letter, count in letterCounts.items():
-            letterFreqs[letter] = count/numLetters
-        return letterFreqs
-
-    def _getLetterCounts(self, corpus):
-        counts = Counter('')
-        for word in corpus:
-            counts += Counter(word)
-        return counts
 
     
 
