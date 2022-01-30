@@ -1,81 +1,56 @@
 from collections import Counter
 from copy import deepcopy
+import numpy as np
 
 class WordleGuessScorer:
     def __init__(self, corpus, pools, yellowConstraints):
         self.corpus = corpus.copy()
         self.pools = deepcopy(pools)
         self.yellowConstraints = yellowConstraints.copy()
+        self.alphabet = list('abcdefghijklmnopqrstuvwxyz')
         
-    # Public - Scoring/Guessing methods for guesses
-    def getBestWord(self):
-        letterScoringMap = self.makeScoringMap()
+    # Main Methods
+    def calculateBestWord(self):
+        scoringMatrix = self.getPositionalLetterScores()
         bestWord = None
         bestScore = 0
         for word in self.corpus:
-            score = self._scoreWord(word, letterScoringMap)
+            score = self.scoreWord(word, scoringMatrix)
             if score > bestScore:
                 bestWord = word
                 bestScore = score
         return bestWord, bestScore
 
-    def getSortedScoredWords(self):
-        wordScores = self.scoreWords()
+    def calculateSortedScoredWords(self):
+        wordScores = self.scoreAllWords()
         sortedScores = sorted(list(wordScores.items()), key=lambda x: -x[1])
         return sortedScores
 
-    # Public - Other methods
-    def scoreWords(self):
-        letterScoringMap = self.makeScoringMap()
+    # Supporting Methods
+    def scoreAllWords(self):
+        scoringMatrix = self.getPositionalLetterScores()
         wordScores = {}
         for word in self.corpus:
-            wordScores[word] = self._scoreWord(word, letterScoringMap)
+            wordScores[word] = self.scoreWord(word, scoringMatrix)
         return wordScores
+
+    def scoreWord(self, word, scoringMatrix):
+        letterIndexes = np.array([ord(c) - ord('a') for c in word])
+        scores = scoringMatrix[np.arange(5), letterIndexes]
+        
+        # count occurences of each letter in word to penalize words with repeats
+        _, uniqueIndexes = np.unique(letterIndexes, return_inverse=True)
+        letterOccurences = np.bincount(uniqueIndexes)[uniqueIndexes]
+        
+        return (scores / letterOccurences).sum()
     
-    def makeScoringMap(self):
-        letterFreqs = self._scoreLetters()
-        letterBlacklist = self._getConstrainingLetters()
-
-        for char in letterBlacklist:
-            letterFreqs[char] = 0
-
-        return letterFreqs
-
-    # Private Methods
-    def _scoreWord(self, word, scoringMap):
-        score = 0
-        countedChars = set()
-        for char in word:
-            # avoids counting chars twice; more letters is more valuable
-            if char not in countedChars:
-                score += scoringMap[char]
-                countedChars.add(char)
-        return score
-    
-    def _getConstrainingLetters(self):
-        '''returns yellow or green constraining letters. Used for blacklisting
-        letters from scoring algorithm'''
-        letters = []
-        for char in self.yellowConstraints:
-            letters.append(char)
-
-        for pool in self.pools:
-            if len(pool) == 1:
-                # len 1 is a green constraint
-                letters.append(list(pool)[0]) # convert to char
-
-        return letters
-
-    def _scoreLetters(self):
-        letterCounts = self._getLetterCounts()
-        numLetters = len(self.corpus) * 5 # every word is 5 letters
-        letterFreqs = {}
-        for letter, count in letterCounts.items():
-            letterFreqs[letter] = count/numLetters
-        return letterFreqs
-
-    def _getLetterCounts(self):
-        counts = Counter('')
-        for word in self.corpus:
-            counts += Counter(word)
-        return counts
+    def getPositionalLetterScores(self):
+        counts = np.zeros((5, len(self.alphabet))) # 5x26 matrix; count per letter per position
+        for i, position in enumerate(zip(*self.corpus)):
+            countPairs = Counter(position) + Counter(self.alphabet) # alphabet added to ensure all 26 letters present
+            sortedCountPairs = sorted(countPairs.items(), key=lambda x: x[0])
+            positionCounts = [count for char, count in sortedCountPairs]
+            counts[i, :] = positionCounts
+        counts -= 1 # subtract 1 from adding alphabet to each row
+        return counts / counts.sum(axis=1)[:, None] # normalize
+        

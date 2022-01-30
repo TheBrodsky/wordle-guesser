@@ -1,13 +1,14 @@
-from nltk.corpus import brown
 from WordleGuessScorer import WordleGuessScorer
+from CorpusCreator import CORPUS_OUT_PATH
 import re
+import pickle
 
 class WordleGuesser:
-    def __init__(self, corpusReader):
-        self.corpusReader = corpusReader
+    def __init__(self, corpus):
+        self.originalCorpus = corpus
         self.letterPools = self._initLetterPools()
         self.yellowConstraints = set()
-        self.corpus = self._getFiveLetterWordCorpus(corpusReader)
+        self.corpus = self._getFiveLetterWordCorpus(corpus.copy())
         self.printBestGuesses(5)
 
     # Getters
@@ -19,6 +20,9 @@ class WordleGuesser:
 
     def getYellowConstraints(self):
         return self.yellowConstraints
+    
+    def getScorer(self):
+        return WordleGuessScorer(self.corpus, self.letterPools, self.yellowConstraints)
 
     # Public Methods
     def makeGuess(self, word):
@@ -50,14 +54,14 @@ class WordleGuesser:
         return len(self.corpus)
 
     def reset(self):
-        self.__init__(self.corpusReader)
+        self.__init__(self.originalCorpus)
 
     def printPoolsAndConstraints(self):
         for pool in self.letterPools:
             print(''.join(pool))
         print(f"Yellow: {''.join(self.yellowConstraints)}")
 
-    # Public - Guess methods, Constrained
+    # Public - Guess methods
     def printBestGuesses(self, numGuesses):
         guesses = self.getBestNGuesses(numGuesses)
         print(f"Best {numGuesses} guesses:")
@@ -65,17 +69,17 @@ class WordleGuesser:
             print(f"{word}: {score:.3f}")
 
     def getBestGuess(self):
-        scorer = WordleGuessScorer(self.corpus, self.letterPools, self.yellowConstraints)
-        bestWord, bestScore = scorer.getBestWord()
+        scorer = self.getScorer()
+        bestWord, bestScore = scorer.calculateBestWord()
         return bestWord
 
     def getBestNGuesses(self, n):
-        scorer = WordleGuessScorer(self.corpus, self.letterPools, self.yellowConstraints)
+        scorer = self.getScorer()
         if len(self.corpus) < n:
             n = len(self.corpus)
-        return scorer.getSortedScoredWords()[:n]
+        return scorer.calculateSortedScoredWords()[:n]
 
-    # Sorta Public Methods (public but probably not useful)
+    # Supporting, Public Methods
     def addGreenLetterConstraint(self, index, letter):
         self.letterPools[index] = set({letter})
 
@@ -101,8 +105,8 @@ class WordleGuesser:
         return set(filtered)
 
     # Private Methods
-    def _getFiveLetterWordCorpus(self, corpusReader):
-        fiveLetterWords = set(filter(lambda x: len(x) == 5, corpusReader.words()))
+    def _getFiveLetterWordCorpus(self, corpus):
+        fiveLetterWords = set(filter(lambda x: len(x) == 5, corpus))
         return self.filterCorpus(fiveLetterWords)
 
     def _assemblePatterns(self):
@@ -129,4 +133,7 @@ class WordleGuesser:
     
 
 if __name__ == "__main__":
-    guesser = WordleGuesser(brown)
+    corpus = None
+    with open(CORPUS_OUT_PATH, 'rb') as file:
+        corpus = pickle.load(file)
+    guesser = WordleGuesser(corpus)
