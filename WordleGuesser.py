@@ -1,5 +1,5 @@
 from WordleGuessScorer import WordleGuessScorer
-from CorpusCreator import CORPUS_OUT_PATH
+from CorpusCreator import CORPUS_OUT_PATH, GUESSES_OUT_PATH
 import re
 import pickle
 
@@ -134,6 +134,12 @@ class WordleGuesser:
 
 if __name__ == "__main__":
     corpus = None
+    guesses = None
     with open(CORPUS_OUT_PATH, 'rb') as file:
         corpus = pickle.load(file)
+    
+    with open(GUESSES_OUT_PATH, 'rb') as file:
+        guesses = pickle.load(file)
+        
     guesser = WordleGuesser(corpus)
+    fullGuesser = WordleGuesser(guesses)
