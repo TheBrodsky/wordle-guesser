@@ -1,15 +1,23 @@
 from WordleGuessScorer import WordleGuessScorer
 from CorpusCreator import CORPUS_OUT_PATH, GUESSES_OUT_PATH
+from enum import Enum
 import re
 import pickle
+import random
 
 class WordleGuesser:
-    def __init__(self, corpus):
+    class Color(Enum):
+        GRAY = 0
+        YELLOW = 1
+        GREEN = 2
+    
+    def __init__(self, corpus, silentInit=False):
         self.originalCorpus = corpus
         self.letterPools = self._initLetterPools()
         self.yellowConstraints = set()
         self.corpus = self._getFiveLetterWordCorpus(corpus.copy())
-        self.printBestGuesses(5)
+        if not silentInit:
+            self.printBestGuesses(5)
 
     # Getters
     def getCorpus(self):
@@ -25,6 +33,17 @@ class WordleGuesser:
         return WordleGuessScorer(self.corpus, self.letterPools, self.yellowConstraints)
 
     # Public Methods
+    def machineGuess(self, word, letterColors):
+        for i, char in enumerate(word):
+            if letterColors[i] == self.Color.GRAY:
+                self.addGrayLetterConstraint(char)
+            elif letterColors[i] == self.Color.YELLOW:
+                self.addYellowLetterConstraint(i, char)
+            else:
+                self.addGreenLetterConstraint(i, char)
+        
+        self.corpus = self.filterCorpus(self.corpus)
+    
     def makeGuess(self, word):
         if len(word) != 5:
             print("Guess must be 5 letters")
@@ -53,8 +72,8 @@ class WordleGuesser:
     def getCorpusSize(self):
         return len(self.corpus)
 
-    def reset(self):
-        self.__init__(self.originalCorpus)
+    def reset(self, silentInit=False):
+        self.__init__(self.originalCorpus, silentInit)
 
     def printPoolsAndConstraints(self):
         for pool in self.letterPools:
@@ -69,9 +88,19 @@ class WordleGuesser:
             print(f"{word}: {score:.3f}")
 
     def getBestGuess(self):
+        '''return highest scoring word. Chooses randomly when multiple words are best'''
         scorer = self.getScorer()
-        bestWord, bestScore = scorer.calculateBestWord()
-        return bestWord
+        bestWords, bestScore = [], 0
+        for word, score in scorer.calculateSortedScoredWords():
+            if bestScore == 0:
+                bestScore = score
+            
+            if score == bestScore:
+                bestWords.append(word)
+            else:
+                break
+        
+        return random.choice(bestWords)
 
     def getBestNGuesses(self, n):
         scorer = self.getScorer()

@@ -77,7 +77,7 @@ class WordleGuessScorer:
         positionCounts = [count for char, count in sortedCountPairs]
         counts = np.array(positionCounts) - 1
         counts = counts * constrainingLetters
-        return counts / counts.sum()
+        return counts / (counts.sum() + 1)
     
     # Private methods
     def _getBlacklistedLettersIndexes(self):
